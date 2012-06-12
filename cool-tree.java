@@ -30,6 +30,8 @@ abstract class Class_ extends TreeNode {
 
 	public abstract void dump_with_types(PrintStream out, int n);
 
+	public abstract void semant();
+
 }
 
 /**
@@ -73,6 +75,8 @@ abstract class Feature extends TreeNode {
 
 	public abstract void dump_with_types(PrintStream out, int n);
 
+	public abstract void semant();
+
 }
 
 /**
@@ -115,6 +119,8 @@ abstract class Formal extends TreeNode {
 	}
 
 	public abstract void dump_with_types(PrintStream out, int n);
+
+	public abstract void semant();
 
 }
 
@@ -178,6 +184,8 @@ abstract class Expression extends TreeNode {
 		}
 	}
 
+	public abstract void semant();
+
 }
 
 /**
@@ -220,6 +228,8 @@ abstract class Case extends TreeNode {
 	}
 
 	public abstract void dump_with_types(PrintStream out, int n);
+
+	public abstract void semant();
 
 }
 
@@ -316,6 +326,10 @@ class programc extends Program {
 
 		/* some semantic analysis code may go here */
 
+		for (Enumeration e = classes.getElements(); e.hasMoreElements();) {
+			((Class_) e.nextElement()).semant();
+		}
+
 		if (classTable.errors()) {
 			System.err
 					.println("Compilation halted due to static semantic errors.");
@@ -399,6 +413,12 @@ class class_c extends Class_ {
 		out.println(Utilities.pad(n + 2) + ")");
 	}
 
+	public void semant() {
+		for (Enumeration e = features.getElements(); e.hasMoreElements();) {
+			((Feature) e.nextElement()).semant();
+		}
+	}
+
 }
 
 /**
@@ -460,6 +480,14 @@ class method extends Feature {
 		expr.dump_with_types(out, n + 2);
 	}
 
+	public void semant() {
+		for (Enumeration e = formals.getElements(); e.hasMoreElements();) {
+			((Formal) e.nextElement()).semant();
+		}
+
+		expr.semant();
+	}
+
 }
 
 /**
@@ -512,6 +540,11 @@ class attr extends Feature {
 		init.dump_with_types(out, n + 2);
 	}
 
+	public void semant() {
+		init.semant();
+
+	}
+
 }
 
 /**
@@ -555,6 +588,10 @@ class formalc extends Formal {
 		out.println(Utilities.pad(n) + "_formal");
 		dump_AbstractSymbol(out, n + 2, name);
 		dump_AbstractSymbol(out, n + 2, type_decl);
+	}
+
+	public void semant() {
+		
 	}
 
 }
@@ -609,6 +646,10 @@ class branch extends Case {
 		expr.dump_with_types(out, n + 2);
 	}
 
+	public void semant() {
+		expr.semant();
+	}
+
 }
 
 /**
@@ -653,6 +694,10 @@ class assign extends Expression {
 		dump_AbstractSymbol(out, n + 2, name);
 		expr.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		expr.semant();
 	}
 
 }
@@ -719,6 +764,13 @@ class static_dispatch extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		expr.semant();
+		for (Enumeration e = actual.getElements(); e.hasMoreElements();) {
+			((Expression) e.nextElement()).semant();
+		}
+	}
+
 }
 
 /**
@@ -776,6 +828,14 @@ class dispatch extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		expr.semant();
+
+		for (Enumeration e = actual.getElements(); e.hasMoreElements();) {
+			((Expression) e.nextElement()).semant();
+		}
+	}
+
 }
 
 /**
@@ -828,6 +888,12 @@ class cond extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		pred.semant();
+		then_exp.semant();
+		else_exp.semant();
+	}
+
 }
 
 /**
@@ -872,6 +938,11 @@ class loop extends Expression {
 		pred.dump_with_types(out, n + 2);
 		body.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		pred.semant();
+		body.semant();
 	}
 
 }
@@ -922,6 +993,12 @@ class typcase extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		for (Enumeration e = cases.getElements(); e.hasMoreElements();) {
+			((Case) e.nextElement()).semant();
+		}
+	}
+
 }
 
 /**
@@ -961,6 +1038,12 @@ class block extends Expression {
 			((Expression) e.nextElement()).dump_with_types(out, n + 2);
 		}
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		for (Enumeration e = body.getElements(); e.hasMoreElements();) {
+			((Expression) e.nextElement()).semant();
+		}
 	}
 
 }
@@ -1023,6 +1106,11 @@ class let extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		init.semant();
+		body.semant();
+	}
+
 }
 
 /**
@@ -1067,6 +1155,11 @@ class plus extends Expression {
 		e1.dump_with_types(out, n + 2);
 		e2.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		e1.semant();
+		e2.semant();
 	}
 
 }
@@ -1115,6 +1208,11 @@ class sub extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		e1.semant();
+		e2.semant();
+	}
+
 }
 
 /**
@@ -1159,6 +1257,11 @@ class mul extends Expression {
 		e1.dump_with_types(out, n + 2);
 		e2.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		e1.semant();
+		e2.semant();
 	}
 
 }
@@ -1207,6 +1310,11 @@ class divide extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		e1.semant();
+		e2.semant();
+	}
+
 }
 
 /**
@@ -1244,6 +1352,10 @@ class neg extends Expression {
 		out.println(Utilities.pad(n) + "_neg");
 		e1.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		e1.semant();
 	}
 
 }
@@ -1292,6 +1404,11 @@ class lt extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		e1.semant();
+		e2.semant();
+	}
+
 }
 
 /**
@@ -1336,6 +1453,11 @@ class eq extends Expression {
 		e1.dump_with_types(out, n + 2);
 		e2.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		e1.semant();
+		e2.semant();
 	}
 
 }
@@ -1384,6 +1506,11 @@ class leq extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		e1.semant();
+		e2.semant();
+	}
+
 }
 
 /**
@@ -1421,6 +1548,10 @@ class comp extends Expression {
 		out.println(Utilities.pad(n) + "_comp");
 		e1.dump_with_types(out, n + 2);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		e1.semant();
 	}
 
 }
@@ -1462,6 +1593,10 @@ class int_const extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		set_type(TreeConstants.Int);
+	}
+
 }
 
 /**
@@ -1499,6 +1634,10 @@ class bool_const extends Expression {
 		out.println(Utilities.pad(n) + "_bool");
 		dump_Boolean(out, n + 2, val);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		set_type(TreeConstants.Bool);
 	}
 
 }
@@ -1542,6 +1681,10 @@ class string_const extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		set_type(TreeConstants.Str);
+	}
+
 }
 
 /**
@@ -1579,6 +1722,10 @@ class new_ extends Expression {
 		out.println(Utilities.pad(n) + "_new");
 		dump_AbstractSymbol(out, n + 2, type_name);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+
 	}
 
 }
@@ -1620,6 +1767,10 @@ class isvoid extends Expression {
 		dump_type(out, n);
 	}
 
+	public void semant() {
+		e1.semant();
+	}
+
 }
 
 /**
@@ -1650,6 +1801,10 @@ class no_expr extends Expression {
 		dump_line(out, n);
 		out.println(Utilities.pad(n) + "_no_expr");
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		set_type(TreeConstants.No_type);
 	}
 
 }
@@ -1689,6 +1844,10 @@ class object extends Expression {
 		out.println(Utilities.pad(n) + "_object");
 		dump_AbstractSymbol(out, n + 2, name);
 		dump_type(out, n);
+	}
+
+	public void semant() {
+		set_type(TreeConstants.Object_);
 	}
 
 }
