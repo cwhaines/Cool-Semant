@@ -323,18 +323,18 @@ class programc extends Program {
 	public void semant() {
 		ClassTable classTable = new ClassTable(classes);
 
-		if (classTable.errors()) {
-			System.err
-					.println("Compilation halted due to static semantic errors.");
-			System.exit(1);
-		}
-
 		SymbolTable o = new SymbolTable();
 
 		for (Enumeration e = classes.getElements(); e.hasMoreElements();) {
 			((Class_) e.nextElement()).semant(o, classTable);
 		}
-
+		
+		if (classTable.errors()) {
+			System.err
+					.println("Compilation halted due to static semantic errors.");
+			System.exit(1);
+		}
+		
 	}
 
 }
@@ -415,9 +415,12 @@ class class_c extends Class_ {
 
 	public void semant(SymbolTable o, ClassTable mc) {
 		o.enterScope();
-		mc.setCurrClass(name);
+		mc.setCurrClass((class_c) copy());
 		for (Enumeration e = features.getElements(); e.hasMoreElements();) {
 			((Feature) e.nextElement()).semant(o, mc);
+		}
+		if(Flags.semant_debug){
+			System.out.println(o.toString());
 		}
 		o.exitScope();
 	}
@@ -464,6 +467,14 @@ class method extends Feature {
 				(Expression) expr.copy());
 	}
 
+	public AbstractSymbol getName() {
+		return name;
+	}
+	
+	public Formals getFormals() {
+		return formals;
+	}
+	
 	public void dump(PrintStream out, int n) {
 		out.print(Utilities.pad(n) + "method\n");
 		dump_AbstractSymbol(out, n + 2, name);
@@ -484,11 +495,13 @@ class method extends Feature {
 	}
 
 	public void semant(SymbolTable o, ClassTable mc) {
+		o.enterScope();
 		for (Enumeration e = formals.getElements(); e.hasMoreElements();) {
 			((Formal) e.nextElement()).semant(o, mc);
 		}
 
 		expr.semant(o, mc);
+		o.exitScope();
 	}
 
 }
@@ -544,6 +557,12 @@ class attr extends Feature {
 	}
 
 	public void semant(SymbolTable o, ClassTable mc) {
+		if(name == TreeConstants.self){
+			mc.semantError(mc.getCurrClass());
+			System.out.println("'" + name.getString() + 
+						"' cannot be the name of an attribute.");
+		}
+		o.addId(name, type_decl);
 		init.semant(o, mc);
 
 	}
@@ -594,7 +613,7 @@ class formalc extends Formal {
 	}
 
 	public void semant(SymbolTable o, ClassTable mc) {
-
+		o.addId(name, type_decl);
 	}
 
 }
@@ -701,7 +720,21 @@ class assign extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		expr.semant(o, mc);
+		AbstractSymbol a = (AbstractSymbol) o.lookup(name);
+		AbstractSymbol b = expr.semant(o, mc);
+		if(b != null && mc.isSubtype(b, a)) {
+			set_type(b);
+			if(Flags.semant_debug){
+				System.out.println("Bazinga");
+			}
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("Type " + b.getString() 
+					+ " of assigned expression does not conform to declared type " 
+					+ a.getString() 
+					+ " of identifier " + name.getString()
+					+ ".");
+		}
 		return get_type();
 	}
 
@@ -896,9 +929,15 @@ class cond extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		pred.semant(o, mc);
-		then_exp.semant(o, mc);
-		else_exp.semant(o, mc);
+		AbstractSymbol a = pred.semant(o, mc);
+		AbstractSymbol b = then_exp.semant(o, mc);
+		AbstractSymbol c = else_exp.semant(o, mc);
+		if (a == TreeConstants.Bool){
+			
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Bool condition");
+		}
 		return get_type();
 	}
 
@@ -951,6 +990,9 @@ class loop extends Expression {
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
 		if(pred.semant(o, mc) == TreeConstants.Bool){
 			set_type(TreeConstants.Object_);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Bool loop condition");
 		}
 		body.semant(o, mc);
 		return get_type();
@@ -1120,8 +1162,21 @@ class let extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		init.semant(o, mc);
-		body.semant(o, mc);
+		o.enterScope();
+		AbstractSymbol a = init.semant(o, mc);
+		o.addId(identifier, type_decl);
+		AbstractSymbol b = body.semant(o, mc);
+		// no init
+		if(a == null){
+			set_type(b);
+		// init
+		} else if(mc.isSubtype(a, type_decl)){
+			set_type(b);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("Not a subtype");
+		}
+		o.exitScope();
 		return get_type();
 	}
 
@@ -1172,9 +1227,16 @@ class plus extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if((e1.semant(o, mc) == TreeConstants.Int) &&
-				(e2.semant(o, mc) == TreeConstants.Int)){
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if((a == TreeConstants.Int) &&
+				(b == TreeConstants.Int)){
 			set_type(TreeConstants.Int);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: "
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1226,9 +1288,16 @@ class sub extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if((e1.semant(o, mc) == TreeConstants.Int) &&
-				(e2.semant(o, mc) == TreeConstants.Int)){
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if((a == TreeConstants.Int) &&
+				(b == TreeConstants.Int)){
 			set_type(TreeConstants.Int);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: "
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1280,9 +1349,16 @@ class mul extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if((e1.semant(o, mc) == TreeConstants.Int) &&
-				(e2.semant(o, mc) == TreeConstants.Int)){
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if((a == TreeConstants.Int) &&
+				(b == TreeConstants.Int)){
 			set_type(TreeConstants.Int);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: "
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1334,9 +1410,16 @@ class divide extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if((e1.semant(o, mc) == TreeConstants.Int) &&
-				(e2.semant(o, mc) == TreeConstants.Int)){
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if((a == TreeConstants.Int) &&
+				(b == TreeConstants.Int)){
 			set_type(TreeConstants.Int);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: "
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1381,8 +1464,13 @@ class neg extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if(e1.semant(o, mc)== TreeConstants.Int){
+		AbstractSymbol a = e1.semant(o, mc);
+		if(a == TreeConstants.Int){
 			set_type(TreeConstants.Int);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int argument: "
+					+ a.getString());
 		}
 		return get_type();
 	}
@@ -1434,9 +1522,16 @@ class lt extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if ((e1.semant(o, mc) == TreeConstants.Int)
-				&& (e2.semant(o, mc) == TreeConstants.Int)) {
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if ((a == TreeConstants.Int)
+				&& (b == TreeConstants.Int)) {
 			set_type(TreeConstants.Bool);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: "
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1488,8 +1583,19 @@ class eq extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		e1.semant(o, mc);
-		e2.semant(o, mc);
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		if (a == TreeConstants.Int || a == TreeConstants.Str
+				|| a == TreeConstants.Bool || b == TreeConstants.Int
+				|| b == TreeConstants.Str || b == TreeConstants.Bool) {
+			if (a != b) {
+				mc.semantError(mc.getCurrClass());
+				System.out.println("Illegal comparison with a basic type");
+			}
+		}
+		if( a != null && b != null){
+			set_type(TreeConstants.Bool);
+		}
 		return get_type();
 	}
 
@@ -1540,9 +1646,17 @@ class leq extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if ((e1.semant(o, mc) == TreeConstants.Int)
-				&& (e2.semant(o, mc) == TreeConstants.Int)) {
+		AbstractSymbol a = e1.semant(o, mc);
+		AbstractSymbol b = e2.semant(o, mc);
+		
+		if ((a == TreeConstants.Int)
+				&& (b == TreeConstants.Int)) {
 			set_type(TreeConstants.Bool);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Int arguments: " 
+					+ a.getString() + " + "
+					+ b.getString());
 		}
 		return get_type();
 	}
@@ -1587,8 +1701,13 @@ class comp extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		if (e1.semant(o, mc) == TreeConstants.Bool) {
+		AbstractSymbol a = e1.semant(o, mc);
+		if (a == TreeConstants.Bool) {
 			set_type(TreeConstants.Bool);
+		} else {
+			mc.semantError(mc.getCurrClass());
+			System.out.println("non-Bool argument: "
+								+ a.getString());
 		}
 		return get_type();
 	}
@@ -1811,7 +1930,9 @@ class isvoid extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
-		e1.semant(o, mc);
+		if(e1.semant(o, mc) != null) {
+			set_type(TreeConstants.Bool);
+		}
 		return get_type();
 	}
 
@@ -1892,6 +2013,17 @@ class object extends Expression {
 	}
 
 	public AbstractSymbol semant(SymbolTable o, ClassTable mc) {
+		if(name == TreeConstants.self){
+			set_type(TreeConstants.SELF_TYPE);
+		} else {
+			AbstractSymbol x = (AbstractSymbol) o.lookup(name);
+			if(x == null){
+				mc.semantError(mc.getCurrClass());
+				System.out.println("Undeclared identifier "
+						+ name.getString());
+			}
+			set_type(x);
+		}
 		return get_type();
 	}
 

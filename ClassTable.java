@@ -12,12 +12,11 @@ class ClassTable {
 	private PrintStream errorStream;
 	
 	private class_c obj_const;
-	private ArrayList<class_c> basics = new ArrayList();
 	private ArrayList<class_c> table = new ArrayList();
 	
 	private int curr_class = -1;
 	
-	private AbstractSymbol currentClass = null;
+	private class_c currentClass = null;
 	
 	/**
 	 * Creates data structures representing basic Cool classes (Object, IO, Int,
@@ -163,10 +162,10 @@ class ClassTable {
 		 */
 		
 		table.add(Object_class);
-		basics.add(Str_class);
-		basics.add(Bool_class);
-		basics.add(Int_class);
-		basics.add(IO_class);
+		table.add(Str_class);
+		table.add(Bool_class);
+		table.add(Int_class);
+		table.add(IO_class);
 		
 		obj_const = Object_class;
 
@@ -184,25 +183,43 @@ class ClassTable {
 		// Cannot inherit from int, string, bool
 		for(int i = 0; i < cls.getLength(); i++) {
 			temp = (class_c) cls.getNth(i).copy();
-			// Check if inherited from 4 basic classes
-			for(int j = 0; j < basics.size(); j++){
-				if(temp.getParent() == basics.get(j).getName()){
+			// Check if inherited from int, string or bool
+			for (int j = 0; j < 5; j++) {
+				if (j > 0 && j < 4 && 
+						temp.getParent() == table.get(j).getName()) {
 					semantError(temp);
 					System.out.println("Class " + temp.getName().getString()
-										+ " cannot inherit class "
-										+ basics.get(j).getName().getString());
-					
+							+ " cannot inherit class "
+							+ table.get(j).getName().getString());
+					hierarchyError();
+				}
+				if(temp.getName() == table.get(j).getName()){
+					semantError(temp);
+					System.out.println("Redefinition of basic class "
+							+ table.get(j).getName().getString());
+					hierarchyError();
 				}
 			}
+			for(int k = 5; k < table.size(); k++){
+				if(temp.getName() == table.get(k).getName()){
+					semantError(temp);
+					System.out.println("Class "
+							+ table.get(k).getName().getString()
+							+ " was previously defined.");
+					hierarchyError();
+				}
+			}
+			
 			table.add(temp);
 		}
 		
 		
-		// Starts at 1, since it doesn't need to check installed classes
-		for(int i = 1; i < table.size(); i++){
+		// Starts at 5, since it doesn't need to check installed classes
+		for(int i = 5; i < table.size(); i++){
 			if(!isSubtypeOfObject(table.get(i), table.size())){
 				semantError(table.get(i));
-				System.out.println("Fucking error");
+				System.out.println("Did not inherit Object");
+				hierarchyError();
 			}
 		}
 	}
@@ -225,6 +242,41 @@ class ClassTable {
 		return -1;
 	}
 	
+	public class_c retParent(class_c c){
+		for(int i = 0; i < table.size(); i++){
+			if(c.getParent() == table.get(i).getName()){
+				return table.get(i);
+			}
+		}
+		semantError(c);
+		System.out.println("Class has no parent");
+		hierarchyError();
+		return null;
+	}
+	
+	public AbstractSymbol retParent(AbstractSymbol a){
+		AbstractSymbol b = findClass(a).getParent();
+		if(b != null){
+			return b;
+		}
+		semantError(currentClass);
+		System.out.println("No parent?");
+		hierarchyError();
+		return null;
+	}
+	
+	public class_c findClass(AbstractSymbol a) {
+		for(int i = 0; i < table.size(); i++){
+			if(table.get(i).getName() == a){
+				return table.get(i);
+			}
+		}
+		semantError(currentClass);
+		System.out.println("No such class: " + a.getString());
+		hierarchyError();
+		return null;
+	}
+	
 	public boolean isSubtypeOfObject(class_c c, int depth){
 		if(depth < 1){
 			return false;
@@ -238,16 +290,34 @@ class ClassTable {
 		return isSubtypeOfObject(table.get(index > 0 ? index : 0), depth-1);
 	}
 	
-	public void setCurrClass(AbstractSymbol name){
-		currentClass = name;
+	public void setCurrClass(class_c c){
+		currentClass = c;
 	}
 	
-	public AbstractSymbol getCurrClass(){
+	public class_c getCurrClass(){
 		return currentClass;
 	}
 	
-	public boolean isSubtype(class_c a, class_c b){
+	public boolean isSubtype(AbstractSymbol a, AbstractSymbol b){
+		if (a == TreeConstants.No_type || b == TreeConstants.No_type) {
+			return false;
+		}
+		if(a == b){
+			return true;
+		} else if (a != obj_const.getName()){
+			return isSubtype(retParent(a), b);
+		}
 		return false;
+	}
+	
+	public void hierarchyError() {
+		System.err
+				.println("Compilation halted due to static semantic errors.");
+		System.exit(1);
+	}
+	
+	public AbstractSymbol getLUB(AbstractSymbol a, AbstractSymbol b){
+		return null;
 	}
 	
 	/**
