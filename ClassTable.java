@@ -1,4 +1,6 @@
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Enumeration;
 
 /**
  * This class may be used to contain the semantic information such as the
@@ -8,7 +10,15 @@ import java.io.PrintStream;
 class ClassTable {
 	private int semantErrors;
 	private PrintStream errorStream;
-
+	
+	private class_c obj_const;
+	private ArrayList<class_c> basics = new ArrayList();
+	private ArrayList<class_c> table = new ArrayList();
+	
+	private int curr_class = -1;
+	
+	private AbstractSymbol currentClass = null;
+	
 	/**
 	 * Creates data structures representing basic Cool classes (Object, IO, Int,
 	 * Bool, String). Please note: as is this method does not do anything
@@ -148,19 +158,98 @@ class ClassTable {
 				filename);
 
 		/*
-		 * Do somethind with Object_class, IO_class, Int_class, Bool_class, and
+		 * Do something with Object_class, IO_class, Int_class, Bool_class, and
 		 * Str_class here
 		 */
+		
+		table.add(Object_class);
+		basics.add(Str_class);
+		basics.add(Bool_class);
+		basics.add(Int_class);
+		basics.add(IO_class);
+		
+		obj_const = Object_class;
 
 	}
 
 	public ClassTable(Classes cls) {
 		semantErrors = 0;
 		errorStream = System.err;
-
-		/* fill this in */
+		
+		installBasicClasses();
+		
+		class_c temp;
+		
+		// Cannot redefine int, string, bool, io
+		// Cannot inherit from int, string, bool
+		for(int i = 0; i < cls.getLength(); i++) {
+			temp = (class_c) cls.getNth(i).copy();
+			// Check if inherited from 4 basic classes
+			for(int j = 0; j < basics.size(); j++){
+				if(temp.getParent() == basics.get(j).getName()){
+					semantError(temp);
+					System.out.println("Class " + temp.getName().getString()
+										+ " cannot inherit class "
+										+ basics.get(j).getName().getString());
+					
+				}
+			}
+			table.add(temp);
+		}
+		
+		
+		// Starts at 1, since it doesn't need to check installed classes
+		for(int i = 1; i < table.size(); i++){
+			if(!isSubtypeOfObject(table.get(i), table.size())){
+				semantError(table.get(i));
+				System.out.println("Fucking error");
+			}
+		}
 	}
+	
+	/**
+	 * 
+	 * @param c
+	 * 			the class
+	 * @return 	the table index of the parent of the given class
+	 * 			-1 if not found
+	 */
+	public int findParent(class_c c){
+		for(int i = 0; i < table.size(); i++){
+			if(c.getParent() == table.get(i).getName()){
+				return i;
+			}
+		}
+		semantError(c);
+		System.out.println("I don't even know");
+		return -1;
+	}
+	
+	public boolean isSubtypeOfObject(class_c c, int depth){
+		if(depth < 1){
+			return false;
+		}
+		if(c.getParent() == obj_const.getName()){
+			return true;
+		}
+		int index = findParent(c);
+		//System.out.println("What?");
 
+		return isSubtypeOfObject(table.get(index > 0 ? index : 0), depth-1);
+	}
+	
+	public void setCurrClass(AbstractSymbol name){
+		currentClass = name;
+	}
+	
+	public AbstractSymbol getCurrClass(){
+		return currentClass;
+	}
+	
+	public boolean isSubtype(class_c a, class_c b){
+		return false;
+	}
+	
 	/**
 	 * Prints line number and file name of the given class.
 	 * 
